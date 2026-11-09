@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sweet Creature | Attendance and Payroll</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="login-page" id="login" data-node-id="1:770">
+    <section class="login-card" aria-labelledby="login-title">
+      <img class="login-logo" src="logo.png" alt="Sweet Creature">
+      <h1 id="login-title">Admin</h1>
+      <p class="login-subtitle">Attendance and Payroll System</p>
+      <form id="login-form">
+        <label class="field">Username<input name="username" value="admin.owner" autocomplete="username"></label>
+        <label class="field">PIN<span class="pin-control"><input id="pin" name="pin" type="password" value="123456" autocomplete="current-password"><button class="text-button" type="button" id="show-pin">Show</button></span></label>
+        <div class="login-error">Incorrect username or PIN.<br>2 attempts left before the account locks.</div>
+        <button class="primary-button login-submit" type="submit">Log In</button>
+      </form>
+      <p class="login-help">Forgot PIN? Ask the owner to reset it.</p>
+    </section>
+  </main>
+
+  <div class="app-shell" id="app" hidden>
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="sidebar-logo.png" alt="Sweet Creature">
+      <nav class="side-nav" aria-label="Main navigation">
+        <button class="nav-link active" data-page="dashboard">Dashboard</button>
+        <div class="nav-group"><p>Attendance</p><button class="nav-link" data-page="flagged">Flagged Attendance</button><button class="nav-link" data-page="staff">Staff</button></div>
+        <div class="nav-group"><p>Payroll</p><button class="nav-link" data-page="payroll">Payroll Run</button><button class="nav-link" data-page="cash">Cash Advance</button></div>
+        <div class="nav-group"><p>Settings</p><button class="nav-link" data-page="sop">SOP</button></div>
+      </nav>
+      <button class="logout" id="logout">Log out</button>
+    </aside>
+    <main class="workspace">
+      <section class="page" id="dashboard" data-node-id="1:85">
+        <header class="page-header"><h1>Dashboard</h1><span class="muted">Today, Nov 8</span></header>
+        <div class="summary-grid">
+          <article class="summary-card"><p>Present Today</p><strong>7 / 10</strong></article>
+          <article class="summary-card"><p>Flagged Entries</p><strong>3</strong><button class="subtle-link" data-go="flagged">Review now</button></article>
+          <article class="summary-card"><p>Pending Cash Advances</p><strong>2</strong><button class="subtle-link" data-go="cash">Review now</button></article>
+          <article class="summary-card"><p>Next Cutoff</p><strong>Nov 15</strong></article>
+        </div>
+        <h2 class="section-title">Today's attendance</h2>
+        <div class="filters" data-filter-group="attendance"><button class="filter active" data-filter="all">All 10</button><button class="filter" data-filter="Late">Late 2</button><button class="filter" data-filter="Flagged">Flagged 1</button><button class="filter" data-filter="Absent">Absent 2</button></div>
+        <div class="table-wrap"><table class="attendance-table"><thead><tr><th>Staff</th><th>Time In</th><th>Time Out</th><th>Hours</th><th>Status</th><th>Photo</th></tr></thead><tbody id="attendance-rows"></tbody></table></div>
+      </section>
+
+      <section class="page" id="staff" data-node-id="1:857" hidden>
+        <header class="page-header"><h1>Staff Management</h1><button class="primary-button" data-open="staff-dialog">+ Add Staff</button></header>
+        <div class="filters" data-filter-group="staff"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="Active">Active</button><button class="filter" data-filter="Locked">Locked</button><button class="filter" data-filter="Inactive">Inactive</button></div>
+        <div class="table-wrap"><table class="staff-table"><thead><tr><th>Name</th><th>Role</th><th>Position</th><th>Hourly rate</th><th>Date hired</th><th>Contact</th><th>Status</th><th>Actions</th></tr></thead><tbody id="staff-rows"></tbody></table></div>
+        <p class="caption">Rate changes are saved with an effective date, so past payslips keep the rate used at the time.</p>
+      </section>
+
+      <section class="page" id="flagged" data-node-id="1:603" hidden>
+        <header class="page-header"><h1>Flagged Attendance</h1></header>
+        <div class="tabs"><button class="tab active" data-go="flagged">Flagged Entries</button><button class="tab" data-go="policy">Attendance Policy</button></div>
+        <div class="filters" data-filter-group="flagged"><button class="filter active" data-filter="Pending">Pending 3</button><button class="filter" data-filter="Approved">Approved</button><button class="filter" data-filter="Rejected">Rejected</button></div>
+        <div class="table-wrap"><table class="flagged-table"><thead><tr><th>Staff</th><th>Date</th><th>Time In</th><th>Time Out</th><th>Reason</th><th>Status</th><th>Photo</th><th>Decision</th></tr></thead><tbody id="flagged-rows"></tbody></table></div>
+        <p class="caption">Flagged entries are not counted in payroll until approved.</p>
+      </section>
+
+      <section class="page" id="policy" data-node-id="1:2" hidden>
+        <header class="page-header"><h1>Flagged Attendance</h1></header>
+        <div class="tabs"><button class="tab" data-go="flagged">Flagged Entries</button><button class="tab active" data-go="policy">Attendance Policy</button></div>
+        <div class="policy-layout"><form class="form-card policy-card" data-demo-form><h2>New Policy Version</h2>
+          <label class="field">Grace Period (minutes)<input value="15"></label>
+          <label class="field">Late Rule<input value="Deduct per minute late, after grace period"></label>
+          <label class="field">Undertime Rule<input value="Deduct per minute of early Time Out"></label>
+          <div class="field-grid"><label class="field">Standard Shift (hours)<input value="8"></label><label class="field">OT After (hours/day)<input value="8"></label><label class="field">OT Multiplier<input value="1.25"></label><label class="field">Effective Date<input value="2026-11-16"></label></div>
+          <button class="primary-button form-submit" type="submit">Save New Policy Version</button>
+        </form><div class="history-panel"><h2>Version history</h2><div class="table-wrap"><table><thead><tr><th>Version</th><th>Effective Date</th><th>Saved By</th><th>Status</th></tr></thead><tbody><tr><td>v2</td><td>Oct 1, 2026</td><td>admin.owner</td><td><span class="badge badge-green">Current</span></td></tr><tr><td>v1</td><td>Sep 1, 2026</td><td>admin.owner</td><td><span class="badge badge-neutral">Replaced</span></td></tr></tbody></table></div><p class="caption">A new version applies only from its effective date.<br>Earlier payrolls keep the policy used when they were computed.</p><p class="caption">Late and undertime flags on the Flagged entries tab follow this policy.</p></div></div>
+      </section>
+
+      <section class="page" id="cash" data-node-id="1:679" hidden>
+        <header class="page-header"><h1>Cash Advance</h1></header>
+        <div class="cash-layout"><form class="form-card cash-card" data-demo-form><h2>Record Cash Advance</h2>
+          <label class="field">Staff<input value="Leo Tan"></label><label class="field">Amount<input value="PHP 400.00"><span class="field-note">Max PHP 1,640.00 (50% of projected net pay)</span></label><label class="field">Date Granted<input value="2026-11-06"></label><label class="field">Deduct on Cutoff<input value="Nov 16 - Nov 30"></label><label class="field">Notes (optional)<input placeholder="Reason for advance"></label><button class="primary-button form-submit" type="submit">Save</button>
+        </form><div class="table-wrap"><table class="cash-table"><thead><tr><th>Staff</th><th>Amount</th><th>Date</th><th>Deduct on Cutoff</th><th>Status</th><th>Actions</th></tr></thead><tbody><tr><td>Maria Santos</td><td>500.00</td><td>Oct 20</td><td>Nov 1 - Nov 15</td><td><span class="badge badge-green">Approved</span></td><td>--</td></tr><tr><td>Jun Reyes</td><td>300.00</td><td>Oct 12</td><td>Oct 16 - Oct 31</td><td><span class="badge badge-dark">Deducted</span></td><td>--</td></tr><tr><td>Leo Tan</td><td>400.00</td><td>Nov 6</td><td>Nov 16 - Nov 30</td><td><span class="badge badge-gold">Pending</span></td><td class="action-text">Approve | Reject</td></tr><tr><td>Paolo Garcia</td><td>600.00</td><td>Nov 7</td><td>Nov 16 - Nov 30</td><td><span class="badge badge-gold">Pending</span></td><td class="action-text">Approve | Reject</td></tr></tbody></table></div></div>
+      </section>
+
+      <section class="page" id="payroll" data-node-id="1:496" hidden>
+        <header class="page-header"><h1>Payroll and Payslips</h1><div class="header-actions"><button class="outline-button" type="button">Compute</button><button class="outline-button" type="button" id="print">Print</button></div></header>
+        <label class="field cutoff-field">Payroll Cutoff<select><option>Nov 1 - Nov 15</option></select></label>
+        <div class="warning-banner">3 flagged entries in this cutoff are unresolved. Resolve them in Flagged Attendance before finalizing.</div>
+        <div class="table-wrap"><table class="payroll-table"><thead><tr><th>Staff</th><th>Days</th><th>Hours</th><th>Gross</th><th>Late/Under</th><th>OT hrs</th><th>OT pay</th><th>CA deduction</th><th>Net pay</th><th>Status</th><th>Payslip</th></tr></thead><tbody id="payroll-rows"></tbody></table></div>
+        <p class="caption">Net pay = Gross + OT pay - Late/Undertime deduction - Cash advance deduction. Finalized payslips are locked.</p><button class="disabled-button" disabled>Finalize Payslips</button>
+      </section>
+
+      <section class="page" id="sop" data-node-id="1:795" hidden>
+        <header class="page-header"><h1>SOP Management</h1><button class="primary-button" type="button">+ New SOP</button></header>
+        <div class="table-wrap sop-wrap"><table><thead><tr><th>Title</th><th>Version</th><th>Last Updated</th><th>Status</th><th>Actions</th></tr></thead><tbody><tr><td>Opening Procedure</td><td>v2</td><td>Oct 2026</td><td><span class="badge badge-green">Published</span></td><td class="action-text">Edit | View history</td></tr><tr><td>Customer Service Standards</td><td>v1</td><td>Sep 2026</td><td><span class="badge badge-green">Published</span></td><td class="action-text">Edit | View history</td></tr><tr><td>Staff Conduct Policy</td><td>v3</td><td>Oct 2026</td><td><span class="badge badge-green">Published</span></td><td class="action-text">Edit | View history</td></tr><tr><td>Closing Checklist</td><td>v1</td><td>Nov 2026</td><td><span class="badge badge-gold">Draft</span></td><td class="action-text">Edit | View history</td></tr></tbody></table></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="modal" id="staff-dialog" data-node-id="1:454"><form method="dialog"><h2>Add Staff</h2><p class="modal-description">The staff member uses the PIN to Time In and Time Out.</p><div class="field-grid modal-fields"><label class="field">Full name<input placeholder="Full name"></label><label class="field">Contact number<input placeholder="09XX XXX XXXX"></label><label class="field">Role<input value="Staff"></label><label class="field">Position<input placeholder="Select position"></label><label class="field">Hourly rate (PHP)<input placeholder="0.00"></label><label class="field">Rate effective date<input placeholder="YYYY-MM-DD"></label><label class="field">Date hired<input placeholder="YYYY-MM-DD"></label><label class="field">Initial PIN<input placeholder="4 to 6 digits"></label></div><div class="modal-actions"><button class="outline-button" value="cancel">Cancel</button><button class="primary-button" value="save">Save Staff</button></div></form></dialog>
+  <dialog class="modal review-modal" id="review-dialog" data-node-id="1:306"><form method="dialog"><h2>Review: Ana Cruz, Nov 7</h2><p class="modal-description">Reason flagged: Missed Time In.<br>Check the photo, then enter the correct times.</p><div class="field-grid modal-fields"><label class="field">Corrected Time In<input value="08:00"></label><label class="field">Corrected Time Out<input value="17:05"></label></div><label class="field remarks-field">Remarks (required)<textarea>Forgot to tap in. Confirmed by supervisor.</textarea><span class="field-note">Saved with your name and the date and time of the decision.</span></label><div class="modal-actions"><button class="outline-button" value="cancel">Cancel</button><button class="outline-button" value="reject">Reject</button><button class="primary-button" value="approve">Approve</button></div></form></dialog>
+</body>
+</html>
