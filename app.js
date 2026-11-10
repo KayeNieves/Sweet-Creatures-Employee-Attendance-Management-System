@@ -18,11 +18,19 @@ const flaggedSeed = [
   ['Jun Reyes', 'Nov 7', '08:35', '17:00', 'Late beyond grace'],
   ['Leo Tan', 'Nov 6', '08:00', '--', 'Missed Time Out']
 ];
-const payroll = [
-  ['Maria Santos', '11', '88.0', '7,040.00', '40.00', '2.0', '200.00', '500.00', '6,700.00'],
-  ['Jun Reyes', '12', '96.0', '8,160.00', '42.50', '0.0', '0.00', '0.00', '8,117.50'],
-  ['Ana Cruz', '10', '80.0', '6,400.00', '0.00', '0.0', '0.00', '0.00', '6,400.00'],
-  ['Leo Tan', '11', '88.0', '7,040.00', '0.00', '0.0', '0.00', '0.00', '7,040.00']
+const PAYROLL_CUTOFFS = [
+  { value: '2026-11-01|2026-11-15', label: 'Nov 1 - Nov 15, 2026' },
+  { value: '2026-11-16|2026-11-30', label: 'Nov 16 - Nov 30, 2026' }
+];
+const WAGE_TABLES = [
+  { region: 'NCR', category: 'nonAgriculture', dailyMinimum: 755, effectiveDate: '2026-09-26', order: 'NCR-28' },
+  { region: 'NCR', category: 'smallRetail', dailyMinimum: 718, effectiveDate: '2026-09-26', order: 'NCR-28' }
+];
+const payrollInputSeed = [
+  { staffName: 'Maria Santos', cutoff: '2026-11-01|2026-11-15', daysWorked: 11, regularHours: 88, lateUndertimeMinutes: 30, overtimeHours: 2 },
+  { staffName: 'Jun Reyes', cutoff: '2026-11-01|2026-11-15', daysWorked: 12, regularHours: 96, lateUndertimeMinutes: 30, overtimeHours: 0 },
+  { staffName: 'Ana Cruz', cutoff: '2026-11-01|2026-11-15', daysWorked: 10, regularHours: 80, lateUndertimeMinutes: 0, overtimeHours: 0 },
+  { staffName: 'Leo Tan', cutoff: '2026-11-01|2026-11-15', daysWorked: 11, regularHours: 88, lateUndertimeMinutes: 0, overtimeHours: 0 }
 ];
 const badgeClass = { OnTime: 'green', Late: 'gold', Flagged: 'red', Absent: 'neutral', Active: 'green', Locked: 'red', Inactive: 'neutral' };
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -34,6 +42,9 @@ const defaultData = () => ({
     rateHistory: [{ rate, effectiveDate: toDateInput(hired) }]
   })),
   flagged: flaggedSeed.map(([name, date, timeIn, timeOut, reason]) => ({ id: makeId(), name, date, timeIn, timeOut, reason, status: 'Pending' })),
+  payrollInputs: payrollInputSeed.map(input => ({ ...input })),
+  payrollRuns: [],
+  payrollSettings: { region: 'NCR', wageCategory: 'smallRetail' },
   cashAdvances: [
     { id: makeId(), staffName: 'Maria Santos', amount: 500, dateGranted: 'Oct 20', cutoff: 'Nov 1 - Nov 15', status: 'Approved', notes: '' },
     { id: makeId(), staffName: 'Jun Reyes', amount: 300, dateGranted: 'Oct 12', cutoff: 'Oct 16 - Oct 31', status: 'Deducted', notes: '' },
@@ -69,7 +80,9 @@ function readData() {
     if (parsed.version !== 1 || !['staff', 'flagged', 'cashAdvances', 'policies'].every(key => Array.isArray(parsed[key]))) {
       throw new Error('Stored data has an unexpected format.');
     }
-    return parsed;
+    const restored = { ...defaultData(), ...parsed };
+    restored.payrollRuns = restored.payrollRuns.filter(run => run.calculationVersion === 2);
+    return restored;
   } catch {
     notify('Saved browser data could not be read. It has not been overwritten.', true);
     return defaultData();
@@ -180,8 +193,51 @@ function renderCashAdvances() {
   document.querySelector('#cash-rows').innerHTML = data.cashAdvances.map(entry => {
     const badge = entry.status === 'Approved' ? 'green' : entry.status === 'Deducted' ? 'dark' : entry.status === 'Rejected' ? 'red' : 'gold';
     const date = entry.dateGranted.includes('-') ? formatDate(entry.dateGranted) : entry.dateGranted;
-    return `<tr data-id="${escapeHtml(entry.id)}"><td>${escapeHtml(entry.staffName)}</td><td>${formatAmount(entry.amount)}</td><td>${escapeHtml(date)}</td><td>${escapeHtml(entry.cutoff)}</td><td>${escapeHtml(entry.notes)}</td><td><span class="badge badge-${badge}">${escapeHtml(entry.status)}</span></td><td>${entry.status === 'Pending' ? `<button class="action-button" data-cash-action="Approved" data-id="${escapeHtml(entry.id)}">Approve</button> | <button class="action-button" data-cash-action="Rejected" data-id="${escapeHtml(entry.id)}">Reject</button>` : '--'}</td></tr>`;
+    return `<tr data-id="${escapeHtml(entry.id)}"><td>${escapeHtml(entry.staffName)}</td><td>${formatAmount(entry.amount)}</td><td>${escapeHtml(date)}</td><td>${escapeHtml(cutoffLabel(entry.cutoff))}</td><td>${escapeHtml(entry.notes)}</td><td><span class="badge badge-${badge}">${escapeHtml(entry.status)}</span></td><td>${entry.status === 'Pending' ? `<button class="action-button" data-cash-action="Approved" data-id="${escapeHtml(entry.id)}">Approve</button> | <button class="action-button" data-cash-action="Rejected" data-id="${escapeHtml(entry.id)}">Reject</button>` : '--'}</td></tr>`;
   }).join('');
+}
+function cutoffLabel(value) {
+  const known = PAYROLL_CUTOFFS.find(cutoff => cutoff.value === normalizeCutoff(value));
+  return known?.label || value;
+}
+function normalizeCutoff(value) {
+  if (PAYROLL_CUTOFFS.some(cutoff => cutoff.value === value)) return value;
+  const match = String(value).match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s*-\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})/);
+  if (!match) return value;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = String(months.indexOf(match[1]) + 1).padStart(2, '0');
+  const start = `${startYearForLegacyCutoff(value)}-${month}-${match[2].padStart(2, '0')}`;
+  const endMonth = String(months.indexOf(match[3]) + 1).padStart(2, '0');
+  return `${start}|${startYearForLegacyCutoff(value)}-${endMonth}-${match[4].padStart(2, '0')}`;
+}
+function startYearForLegacyCutoff(value) {
+  return value.includes('2026') ? '2026' : '2026';
+}
+function renderCashStaffOptions() {
+  const select = document.querySelector('#cash-staff');
+  const selected = select.value;
+  select.innerHTML = data.staff.filter(person => person.status !== 'Inactive')
+    .map(person => `<option value="${escapeHtml(person.name)}">${escapeHtml(person.name)}</option>`).join('');
+  if (data.staff.some(person => person.name === selected && person.status !== 'Inactive')) select.value = selected;
+  updateCashAdvanceLimit();
+}
+function availableCashAdvanceLimit(person, cutoff, exceptId) {
+  const cutoffLimit = Math.min(1640, roundMoney(projectedNetPay(person, cutoff) * 0.5));
+  const alreadyReserved = data.cashAdvances
+    .filter(item => item.id !== exceptId
+      && item.staffName === person.name
+      && normalizeCutoff(item.cutoff) === cutoff
+      && ['Pending', 'Approved', 'Deducted'].includes(item.status))
+    .reduce((total, item) => total + Number(item.amount), 0);
+  return Math.max(0, roundMoney(cutoffLimit - alreadyReserved));
+}
+function updateCashAdvanceLimit() {
+  const person = data.staff.find(item => item.name === document.querySelector('#cash-staff').value);
+  const cutoff = document.querySelector('#cash-cutoff').value;
+  const maximum = person ? availableCashAdvanceLimit(person, cutoff) : 0;
+  const amount = document.querySelector('#cash-form').elements.amount;
+  amount.max = maximum.toFixed(2);
+  document.querySelector('#cash-advance-limit').textContent = `Max PHP 1,640.00 (50% of projected net pay; PHP ${formatAmount(maximum)} available for this cutoff)`;
 }
 function renderPolicies() {
   const now = new Date();
@@ -193,20 +249,222 @@ function renderPolicies() {
     return `<tr><td>v${escapeHtml(policy.version)}</td><td>${escapeHtml(formatDate(policy.effectiveDate))}</td><td>${escapeHtml(policy.savedBy)}</td><td><span class="badge badge-${status === 'Current' ? 'green' : status === 'Scheduled' ? 'gold' : 'neutral'}">${status}</span></td></tr>`;
   }).join('');
 }
+function cutoffValue() {
+  return document.querySelector('#payroll-cutoff').value;
+}
+function selectedWageTable(cutoff) {
+  const [, endDate] = cutoff.split('|');
+  const category = document.querySelector('#wage-category').value;
+  return WAGE_TABLES.find(table => table.region === 'NCR' && table.category === category && table.effectiveDate <= endDate);
+}
+function effectiveRate(person, cutoff) {
+  const [, endDate] = cutoff.split('|');
+  const history = person.rateHistory || [{ rate: person.rate, effectiveDate: person.rateEffectiveDate || toDateInput(person.hired) }];
+  const applicable = history
+    .filter(item => item.effectiveDate <= endDate)
+    .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0];
+  return applicable ? Number(applicable.rate) : 0;
+}
+function roundMoney(value) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+function projectedNetPay(person, cutoff = cutoffValue()) {
+  const input = data.payrollInputs.find(item => item.staffName === person.name && item.cutoff === cutoff);
+  const policy = data.policies
+    .filter(item => item.effectiveDate <= cutoff.split('|')[1])
+    .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0] || data.policies[0];
+  const rate = effectiveRate(person, cutoff);
+  const hours = input?.regularHours ?? policy.standardShift * 10;
+  const basicPay = hours * rate;
+  const overtimePay = (input?.overtimeHours || 0) * rate * (policy.otMultiplier || 1.25);
+  const lateDeduction = ((input?.lateUndertimeMinutes || 0) / 60) * rate;
+  return Math.max(0, roundMoney(basicPay + overtimePay - lateDeduction));
+}
+function computePayroll(cutoff) {
+  const [startDate, endDate] = cutoff.split('|');
+  const wageTable = selectedWageTable(cutoff);
+  if (!wageTable) throw new Error('No effective NCR minimum-wage table is configured for this cutoff.');
+  const policy = data.policies
+    .filter(item => item.effectiveDate <= endDate)
+    .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0];
+  if (!policy) throw new Error('No attendance policy is effective for this payroll cutoff.');
+  const inputs = data.payrollInputs.filter(item => item.cutoff === cutoff);
+  const rows = inputs.flatMap(input => {
+    const person = data.staff.find(item => item.name === input.staffName && item.status !== 'Inactive');
+    if (!person) return [];
+    const rate = effectiveRate(person, cutoff);
+    const basicPay = roundMoney(input.regularHours * rate);
+    const overtimePay = roundMoney(input.overtimeHours * rate * policy.otMultiplier);
+    const lateDeduction = roundMoney(input.lateUndertimeMinutes * rate / 60);
+    const advance = data.cashAdvances
+      .filter(item => item.staffName === person.name && normalizeCutoff(item.cutoff) === cutoff && item.status === 'Approved')
+      .reduce((total, item) => total + Number(item.amount), 0);
+    const netPay = roundMoney(basicPay + overtimePay - lateDeduction - advance);
+    return [{
+      id: makeId(), staffName: person.name, daysWorked: input.daysWorked,
+      regularHours: input.regularHours, overtimeHours: input.overtimeHours,
+      hourlyRate: rate, basicPay, overtimePay, lateDeduction,
+      cashAdvanceDeduction: advance, netPay,
+      minimumWage: wageTable.dailyMinimum,
+      wageCompliant: rate * policy.standardShift >= wageTable.dailyMinimum,
+      payrollStatus: 'Draft'
+    }];
+  });
+  if (!rows.length) throw new Error('No payroll attendance inputs are available for this cutoff.');
+  return {
+    id: makeId(), cutoff, startDate, endDate, region: 'NCR',
+    calculationVersion: 2,
+    wageCategory: document.querySelector('#wage-category').value,
+    wageOrder: wageTable.order, wageEffectiveDate: wageTable.effectiveDate,
+    policy: { ...policy }, computedAt: new Date().toISOString(),
+    status: 'Draft', rows
+  };
+}
+function unresolvedFlaggedEntries(cutoff) {
+  const [startDate, endDate] = cutoff.split('|');
+  return data.flagged.filter(entry => {
+    if (entry.status !== 'Pending') return false;
+    const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(entry.date)
+      ? entry.date
+      : (() => {
+        const match = entry.date.match(/^([A-Za-z]+)\s+(\d{1,2})$/);
+        if (!match) return '';
+        const month = new Date(`${match[1]} 1, ${startDate.slice(0, 4)}`).getMonth() + 1;
+        return `${startDate.slice(0, 4)}-${String(month).padStart(2, '0')}-${String(Number(match[2])).padStart(2, '0')}`;
+      })();
+    return parsedDate >= startDate && parsedDate <= endDate;
+  });
+}
+function showPayslip(run, row) {
+  const details = [
+    ['Employee', row.staffName],
+    ['Days worked', row.daysWorked],
+    ['Hours worked', formatAmount(row.regularHours)],
+    ['Gross pay (PHP)', formatAmount(row.basicPay)],
+    ['Late/undertime deduction (PHP)', formatAmount(row.lateDeduction)],
+    ['Overtime hours', formatAmount(row.overtimeHours)],
+    ['Overtime pay (PHP)', formatAmount(row.overtimePay)],
+    ['Cash advance deduction (PHP)', formatAmount(row.cashAdvanceDeduction)],
+    ['Net pay (PHP)', formatAmount(row.netPay)],
+    ['Payroll status', run.status === 'Finalized' ? 'Finalized' : 'Draft sample']
+  ];
+  document.querySelector('#payslip-title').textContent = `Payslip - ${row.staffName}`;
+  document.querySelector('#payslip-description').textContent = 'Sample payslip preview; figures are calculated from the selected payroll cutoff.';
+  document.querySelector('#payslip-details').innerHTML = details
+    .map(([label, value]) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`)
+    .join('');
+  document.querySelector('#payslip-dialog').showModal();
+}
 function renderPayroll() {
-  document.querySelector('#payroll-rows').innerHTML = payroll.map((row, index) =>
-    `<tr>${row.map(value => `<td>${value}</td>`).join('')}<td><span class="badge badge-gold">Draft</span></td><td><button class="action-button" data-payslip-view="${index}">View</button></td></tr>`
-  ).join('');
+  const cutoff = cutoffValue();
+  const run = data.payrollRuns.find(item => item.cutoff === cutoff);
+  const rows = document.querySelector('#payroll-rows');
+  const warning = document.querySelector('#payroll-warning');
+  const finalizeButton = document.querySelector('#finalize-payroll');
+  document.querySelector('#wage-category').value = run?.wageCategory || data.payrollSettings.wageCategory;
+  document.querySelector('#wage-category').disabled = run?.status === 'Finalized';
+  document.querySelector('#payroll-compute').disabled = run?.status === 'Finalized';
+  if (!run) {
+    rows.innerHTML = '<tr><td colspan="11">Select Compute to calculate this cutoff.</td></tr>';
+    warning.hidden = true;
+    finalizeButton.disabled = true;
+    return;
+  }
+  rows.innerHTML = run.rows.map(row => {
+    const status = run.status === 'Finalized' ? 'Finalized' : row.wageCompliant ? 'Draft' : 'Below minimum wage';
+    const badge = status === 'Finalized' ? 'green' : row.wageCompliant ? 'gold' : 'red';
+    return `<tr><td>${escapeHtml(row.staffName)}</td><td>${row.daysWorked}</td><td>${formatAmount(row.regularHours)}</td><td>${formatAmount(row.basicPay)}</td><td>${formatAmount(row.lateDeduction)}</td><td>${formatAmount(row.overtimeHours)}</td><td>${formatAmount(row.overtimePay)}</td><td>${formatAmount(row.cashAdvanceDeduction)}</td><td>${formatAmount(row.netPay)}</td><td><span class="badge badge-${badge}">${status}</span></td><td><button class="action-button" data-payslip-view="${escapeHtml(row.id)}">View</button></td></tr>`;
+  }).join('');
+  const pending = unresolvedFlaggedEntries(cutoff);
+  const belowMinimum = run.rows.filter(row => !row.wageCompliant);
+  const negativeNet = run.rows.filter(row => row.netPay < 0);
+  const warnings = [];
+  if (pending.length) warnings.push(`${pending.length} flagged attendance entr${pending.length === 1 ? 'y is' : 'ies are'} unresolved; resolve them before finalizing.`);
+  if (belowMinimum.length) warnings.push(`${belowMinimum.map(row => row.staffName).join(', ')} have an hourly rate below the selected NCR minimum-wage equivalent.`);
+  if (negativeNet.length) warnings.push(`${negativeNet.map(row => row.staffName).join(', ')} have negative net pay.`);
+  warning.textContent = warnings.join(' ');
+  warning.hidden = warnings.length === 0;
+  finalizeButton.disabled = run.status === 'Finalized' || pending.length > 0 || belowMinimum.length > 0 || negativeNet.length > 0;
+  finalizeButton.textContent = run.status === 'Finalized' ? 'Payslips Finalized' : 'Finalize Payslips';
 }
 function renderAll() {
   renderAttendance();
   renderStaff();
   renderFlagged();
   renderCashAdvances();
+  renderCashStaffOptions();
   renderPolicies();
   renderPayroll();
 }
 renderAll();
+
+document.querySelector('#payroll-cutoff').addEventListener('change', () => {
+  renderPayroll();
+  updateCashAdvanceLimit();
+});
+document.querySelector('#wage-category').addEventListener('change', event => {
+  const previous = data.payrollSettings.wageCategory;
+  const cutoff = cutoffValue();
+  const previousRuns = [...data.payrollRuns];
+  data.payrollSettings.wageCategory = event.currentTarget.value;
+  data.payrollRuns = data.payrollRuns.filter(run => run.cutoff !== cutoff || run.status === 'Finalized');
+  if (!persist()) {
+    data.payrollSettings.wageCategory = previous;
+    data.payrollRuns = previousRuns;
+  }
+  renderPayroll();
+});
+document.querySelector('#payroll-compute').addEventListener('click', () => {
+  const cutoff = cutoffValue();
+  if (data.payrollRuns.some(run => run.cutoff === cutoff && run.status === 'Finalized')) {
+    notify('Finalized payroll is locked and cannot be recomputed.', true);
+    return;
+  }
+  try {
+    const previousRuns = [...data.payrollRuns];
+    const run = computePayroll(cutoff);
+    data.payrollRuns = [...data.payrollRuns.filter(item => item.cutoff !== cutoff), run];
+    if (!persist()) {
+      data.payrollRuns = previousRuns;
+      return;
+    }
+    renderPayroll();
+    notify(`Payroll computed for ${PAYROLL_CUTOFFS.find(item => item.value === cutoff)?.label || cutoff}. Review warnings before finalizing.`);
+  } catch (error) {
+    notify(`Could not compute payroll: ${error.message}`, true);
+  }
+});
+document.querySelector('#finalize-payroll').addEventListener('click', () => {
+  const cutoff = cutoffValue();
+  const run = data.payrollRuns.find(item => item.cutoff === cutoff);
+  if (!run || run.status === 'Finalized') return;
+  const blockers = [];
+  if (unresolvedFlaggedEntries(cutoff).length) blockers.push('resolve flagged attendance');
+  if (run.rows.some(row => !row.wageCompliant)) blockers.push('correct hourly rates below minimum wage');
+  if (run.rows.some(row => row.netPay < 0)) blockers.push('resolve negative net pay');
+  if (blockers.length) {
+    notify(`Cannot finalize payroll: ${blockers.join('; ')}.`, true);
+    renderPayroll();
+    return;
+  }
+  const previousStatus = run.status;
+  const previousAdvanceStatuses = data.cashAdvances.map(entry => entry.status);
+  run.status = 'Finalized';
+  run.finalizedAt = new Date().toISOString();
+  run.rows.forEach(row => { row.payrollStatus = 'Finalized'; });
+  data.cashAdvances.forEach(entry => {
+    if (normalizeCutoff(entry.cutoff) === cutoff && entry.status === 'Approved') entry.status = 'Deducted';
+  });
+  if (!persist()) {
+    run.status = previousStatus;
+    run.rows.forEach(row => { row.payrollStatus = previousStatus; });
+    data.cashAdvances.forEach((entry, index) => { entry.status = previousAdvanceStatuses[index]; });
+    return;
+  }
+  renderPayroll();
+  renderCashAdvances();
+  notify('Payslips finalized and locked. Approved cash advances for this cutoff are marked as deducted.');
+});
 
 function openPhotoDialog(entry, allowUpload) {
   const dialog = document.querySelector('#photo-dialog');
@@ -327,13 +585,9 @@ document.addEventListener('click', event => {
 
   const payslipButton = target.closest('[data-payslip-view]');
   if (payslipButton) {
-    const row = payroll[Number(payslipButton.dataset.payslipView)];
-    if (!row) return;
-    const labels = ['Staff', 'Days worked', 'Hours worked', 'Gross pay (PHP)', 'Late/undertime deduction (PHP)', 'Overtime hours', 'Overtime pay (PHP)', 'Cash advance deduction (PHP)', 'Net pay (PHP)'];
-    document.querySelector('#payslip-details').innerHTML = row.map((value, index) =>
-      `<tr><th scope="row">${labels[index]}</th><td>${escapeHtml(value)}</td></tr>`
-    ).join('') + '<tr><th scope="row">Payroll status</th><td>Draft sample</td></tr>';
-    document.querySelector('#payslip-dialog').showModal();
+    const run = data.payrollRuns.find(item => item.cutoff === cutoffValue());
+    const row = run?.rows.find(item => item.id === payslipButton.dataset.payslipView);
+    if (run && row) showPayslip(run, row);
   }
 
   const photoAction = target.closest('[data-photo-action]');
@@ -363,6 +617,15 @@ document.addEventListener('click', event => {
   if (cashAction) {
     const entry = data.cashAdvances.find(item => item.id === cashAction.dataset.id);
     if (!entry || entry.status !== 'Pending') return;
+    if (cashAction.dataset.cashAction === 'Approved') {
+      const person = data.staff.find(item => item.name === entry.staffName);
+      const advanceCutoff = normalizeCutoff(entry.cutoff);
+      const limit = person ? availableCashAdvanceLimit(person, advanceCutoff, entry.id) : 0;
+      if (Number(entry.amount) > limit) {
+        notify(`Cannot approve this cash advance. The maximum is PHP ${formatAmount(limit)} (the lower of PHP 1,640.00 or 50% of projected net pay).`, true);
+        return;
+      }
+    }
     const previousStatus = entry.status;
     entry.status = cashAction.dataset.cashAction;
     if (!persist()) {
@@ -421,6 +684,7 @@ document.querySelector('#staff-form').addEventListener('submit', event => {
   delete form.closest('dialog').dataset.recordId;
   form.closest('dialog').close('save');
   renderStaff();
+  renderCashStaffOptions();
   notify(existing ? 'Staff details saved in this browser.' : 'Staff member saved in this browser. The PIN was not saved.');
 });
 
@@ -489,13 +753,26 @@ document.querySelector('#staff-dialog').addEventListener('close', () => {
 
 document.querySelector('#cash-form').addEventListener('submit', event => {
   event.preventDefault();
-  const values = new FormData(event.currentTarget);
+  const form = event.currentTarget;
+  const values = new FormData(form);
+  const person = data.staff.find(item => item.name === values.get('staffName'));
+  if (!person) {
+    notify('Select an active staff member for the cash advance.', true);
+    return;
+  }
+  const cutoff = normalizeCutoff(values.get('cutoff'));
+  const maximum = availableCashAdvanceLimit(person, cutoff);
+  const amount = Number(values.get('amount'));
+  if (!Number.isFinite(amount) || amount <= 0 || amount > maximum) {
+    notify(`Cash advance must be greater than zero and no more than PHP ${formatAmount(maximum)} (the lower of PHP 1,640.00 or 50% of projected net pay).`, true);
+    return;
+  }
   const entry = {
     id: makeId(),
     staffName: values.get('staffName').trim(),
-    amount: Number(values.get('amount')),
+    amount,
     dateGranted: values.get('dateGranted'),
-    cutoff: values.get('cutoff').trim(),
+    cutoff,
     notes: values.get('notes').trim(),
     status: 'Pending'
   };
@@ -506,8 +783,11 @@ document.querySelector('#cash-form').addEventListener('submit', event => {
   }
   event.currentTarget.reset();
   renderCashAdvances();
+  renderCashStaffOptions();
   notify('Cash advance saved in this browser as pending.');
 });
+document.querySelector('#cash-staff').addEventListener('change', updateCashAdvanceLimit);
+document.querySelector('#cash-cutoff').addEventListener('change', updateCashAdvanceLimit);
 
 document.querySelector('#policy-form').addEventListener('submit', event => {
   event.preventDefault();
