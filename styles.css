@@ -29,6 +29,9 @@ h2 { font-size: 13px; line-height: 16px; }
 .nav-group p { padding: 0 10px 4px; color: #9ca764; font-size: 10.5px; }
 .logout { position: absolute; bottom: 15px; left: 12px; width: calc(100% - 24px); color: #9ca764; font-size: 11.5px; }
 .workspace { flex: 1; min-width: 0; padding: 26px; }
+.app-message { margin: 0 0 14px; padding: 9px 12px; border: 1px solid #9ca764; border-radius: 4px; background: #f1f3e7; color: #3b2a20; font-size: 12px; }
+.app-message.is-error { border-color: #a8503a; background: #f8e9e5; color: #7d3325; }
+.storage-notice { margin: 0 0 14px; color: #857766; font-size: 10.5px; line-height: 14px; }
 .page { width: 100%; }
 .page-header { display: flex; min-height: 34px; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 15px; }
 .muted, .caption, .modal-description, .field-note { color: #857766; }
@@ -65,6 +68,7 @@ td { height: 32px; padding: 5px 9px; border-top: 1px solid #e7daa6; font-size: 1
 .badge-dark { background: #5c6a3b; color: #fffdf5; }
 .action-text, .action-button { color: #5c6a3b; font-size: 10.5px; font-weight: 700; }
 .action-button { padding: 0; border: 0; background: none; }
+.staff-actions { display: flex; gap: 8px; }
 .caption { margin-top: 7px; font-size: 10.5px; line-height: 14px; }
 .tabs { display: flex; gap: 25px; margin-bottom: 17px; border-bottom: 1px solid #e7daa6; }
 .tab { padding: 0 2px 5px; border: 0; border-bottom: 3px solid transparent; background: none; color: #857766; font-size: 12.5px; }
@@ -105,6 +109,12 @@ td { height: 32px; padding: 5px 9px; border-top: 1px solid #e7daa6; font-size: 1
 .modal-actions button { min-width: 80px; }
 .remarks-field { margin-top: 14px; }
 .review-modal .modal-actions { margin-top: 39px; }
+.photo-preview { display: block; max-width: 100%; max-height: 55vh; margin: 14px auto; object-fit: contain; }
+@media print {
+  body.print-payslip > *:not(#payslip-dialog) { display: none !important; }
+  body.print-payslip #payslip-dialog { position: static; display: block; width: 100%; max-width: none; padding: 0; }
+  body.print-payslip #payslip-dialog .modal-actions { display: none; }
+}
 @media (max-width: 700px) {
   .app-shell { display: block; }
   .sidebar { min-height: auto; padding: 14px; }
